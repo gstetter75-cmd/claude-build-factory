@@ -1,0 +1,50 @@
+name: "Build Request"
+description: "Neues Projekt von Claude bauen und deployen lassen"
+title: "[BUILD] "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Claude Build Request
+
+        Fülle den Spec unten aus. Claude liest diesen Issue automatisch, wenn du das Label `claude-build` hinzufügst.
+
+        **Workflow:**
+        1. Issue ausfüllen
+        2. Issue erstellen
+        3. Label `claude-build` hinzufügen
+        4. Claude baut und deployed automatisch (~10-20 min)
+        5. Deploy-URL erscheint als Issue-Kommentar
+
+  - type: textarea
+    id: spec
+    attributes:
+      label: "Projekt-Spec"
+      description: "Spec für Claude — alles was Claude zum Bauen braucht"
+      value: |
+        APP_TYPE: Web-App
+        NAME: mein-projekt
+        DESCRIPTION: Kurze Beschreibung was die App macht
+
+        ZIELGRUPPE: Wer nutzt die App?
+
+        FEATURES:
+        - Feature 1
+        - Feature 2
+        - Feature 3
+
+        TECH_STACK: next.js
+        STYLING: tailwind+shadcn
+        AUTH: keine
+        DATABASE: localStorage
+
+        DESIGN:
+          STIL: minimal
+          FARBEN: warmes Off-White + Dunkelgrau
+          BESONDERHEITEN: mobile-first
+
+        DEPLOY_TARGET: netlify
+        SPRACHE: de
+    validations:
+      required: true

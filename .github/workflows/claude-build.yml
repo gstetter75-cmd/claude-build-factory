@@ -1,0 +1,114 @@
+name: Claude Build Factory
+
+on:
+  issues:
+    types: [labeled]
+
+jobs:
+  build:
+    if: github.event.label.name == 'claude-build'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    permissions:
+      issues: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install tools
+        run: |
+          npm install -g @anthropic-ai/claude-code netlify-cli
+          echo "Claude CLI: $(claude --version 2>/dev/null || echo 'installed')"
+          echo "Netlify CLI: $(netlify --version)"
+
+      - name: Authenticate Netlify
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+        run: netlify login --auth "$NETLIFY_AUTH_TOKEN"
+
+      - name: Setup Claude config
+        run: |
+          mkdir -p ~/.claude/commands
+          cp CLAUDE.md ~/.claude/CLAUDE.md
+          cp .claude/commands/build-project.md ~/.claude/commands/build-project.md
+          cat > ~/.claude/settings.json << 'EOF'
+          {
+            "permissions": {
+              "allow": [
+                "Bash(*)",
+                "Edit",
+                "Write",
+                "Read",
+                "Glob",
+                "Grep"
+              ],
+              "defaultMode": "auto"
+            }
+          }
+          EOF
+
+      - name: Write spec to file
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: printf '%s' "$ISSUE_BODY" > /tmp/spec.txt
+
+      - name: Run Claude Build
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+        run: |
+          claude -p "$(cat /tmp/spec.txt)" \
+            --dangerously-skip-permissions \
+            --max-turns 150 \
+            2>&1 | tee /tmp/build-output.txt
+
+      - name: Post result to issue
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          OUTPUT=$(tail -60 /tmp/build-output.txt 2>/dev/null || echo "No output")
+          URL=$(grep -oE 'https://[a-z0-9-]+\.netlify\.app' /tmp/build-output.txt 2>/dev/null | tail -1)
+
+          if [ -n "$URL" ]; then
+            BODY="## Build abgeschlossen
+
+**URL:** $URL
+
+<details>
+<summary>Build-Log</summary>
+
+\`\`\`
+$OUTPUT
+\`\`\`
+
+</details>"
+            gh issue comment "$ISSUE_NUMBER" --body "$BODY"
+            gh issue edit "$ISSUE_NUMBER" \
+              --remove-label "claude-build" \
+              --add-label "deployed" 2>/dev/null || true
+          else
+            BODY="## Build fehlgeschlagen
+
+Keine Deploy-URL gefunden. Bitte Build-Log prüfen.
+
+<details>
+<summary>Build-Log</summary>
+
+\`\`\`
+$OUTPUT
+\`\`\`
+
+</details>"
+            gh issue comment "$ISSUE_NUMBER" --body "$BODY"
+            gh issue edit "$ISSUE_NUMBER" \
+              --remove-label "claude-build" \
+              --add-label "build-failed" 2>/dev/null || true
+          fi

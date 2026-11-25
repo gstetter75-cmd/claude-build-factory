@@ -6,7 +6,7 @@ on:
 
 jobs:
   build:
-    if: github.event.label.name == 'claude-build'
+    if: ${{ github.event.label.name == 'claude-build' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
 
@@ -78,36 +78,40 @@ jobs:
           URL=$(grep -oE 'https://[a-z0-9-]+\.netlify\.app' /tmp/build-output.txt 2>/dev/null | tail -1)
 
           if [ -n "$URL" ]; then
-            BODY="## Build abgeschlossen
-
-**URL:** $URL
-
-<details>
-<summary>Build-Log</summary>
-
-\`\`\`
-$OUTPUT
-\`\`\`
-
-</details>"
-            gh issue comment "$ISSUE_NUMBER" --body "$BODY"
+            {
+              echo "## Build abgeschlossen"
+              echo ""
+              echo "**URL:** $URL"
+              echo ""
+              echo "<details>"
+              echo "<summary>Build-Log</summary>"
+              echo ""
+              echo '```'
+              echo "$OUTPUT"
+              echo '```'
+              echo ""
+              echo "</details>"
+            } > /tmp/comment.md
+            gh issue comment "$ISSUE_NUMBER" --body-file /tmp/comment.md
             gh issue edit "$ISSUE_NUMBER" \
               --remove-label "claude-build" \
               --add-label "deployed" 2>/dev/null || true
           else
-            BODY="## Build fehlgeschlagen
-
-Keine Deploy-URL gefunden. Bitte Build-Log prüfen.
-
-<details>
-<summary>Build-Log</summary>
-
-\`\`\`
-$OUTPUT
-\`\`\`
-
-</details>"
-            gh issue comment "$ISSUE_NUMBER" --body "$BODY"
+            {
+              echo "## Build fehlgeschlagen"
+              echo ""
+              echo "Keine Deploy-URL gefunden. Bitte Build-Log prüfen."
+              echo ""
+              echo "<details>"
+              echo "<summary>Build-Log</summary>"
+              echo ""
+              echo '```'
+              echo "$OUTPUT"
+              echo '```'
+              echo ""
+              echo "</details>"
+            } > /tmp/comment.md
+            gh issue comment "$ISSUE_NUMBER" --body-file /tmp/comment.md
             gh issue edit "$ISSUE_NUMBER" \
               --remove-label "claude-build" \
               --add-label "build-failed" 2>/dev/null || true
